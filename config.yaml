@@ -1,0 +1,103 @@
+account_balance: 1000.0
+learning:
+  adapt_strategies: true
+  adaptation_threshold: 0.1
+  backtest_days: 90
+  enable_backtesting: true
+  performance_window: 30
+  track_performance: true
+notifications:
+  email_address: ''
+  email_enabled: false
+  email_password: ''
+  notify_on_daily_summary: true
+  notify_on_loss: true
+  notify_on_profit: true
+  notify_on_trade: true
+  webhook_url: ''
+real_trading:
+  after_hours_end: '20:00'
+  broker: alpaca
+  daily_loss_limit: 500.0
+  market_close: '16:00'
+  market_open: 09:30
+  max_trade_size: 1000.0
+  pre_market_start: 04:00
+  require_confirmation: true
+research:
+  max_research_time: 300
+  news_sources:
+  - https://finance.yahoo.com/news
+  - https://www.marketwatch.com/news
+  - https://seekingalpha.com/news
+  - https://www.cnbc.com/markets
+  - https://www.bloomberg.com/markets
+  research_start_time: 09:00
+  sentiment_threshold: 0.3
+  trading_start_time: 09:30
+  trend_analysis_window: 14
+system:
+  dashboard_host: 0.0.0.0
+  dashboard_port: 8000
+  database_url: sqlite:///trading_data.db
+  emergency_stop_loss: 10.0
+  log_level: INFO
+  max_daily_loss: 5.0
+  max_daily_trades: 10
+trading:
+  account_balance: 50000.0
+  alpaca_api_key: ''
+  alpaca_paper_trading: true
+  alpaca_secret_key: ''
+  max_position_size: 5.0
+  mode: virtual
+  risk_percentage: 2.0
+  stop_loss_percentage: 3.0
+  take_profit_percentage: 6.0
+virtual_trading:
+  allow_short_selling: true
+  commission_rate: 0.005
+  margin_trading: false
+  simulate_commissions: true
+  simulate_slippage: true
+
+# Multi-Strategy Configuration
+strategies:
+  turbo:
+    name: "Turbo (Hyper Aggressive)"
+    description: "Maximum risk, maximum potential return"
+    account_balance: 10000.0
+    risk_percentage: 8.0  # 8% risk per trade
+    max_position_size: 15.0  # 15% max position
+    max_daily_trades: 20  # More trades per day
+    max_daily_loss: 15.0  # 15% daily loss limit
+    stop_loss_percentage: 5.0  # 5% stop loss
+    take_profit_percentage: 10.0  # 10% take profit
+    min_score_threshold: 0.05  # Lower threshold for more trades
+    max_risk_score: 0.9  # Higher risk tolerance
+    
+  moderate:
+    name: "Moderate (Current)"
+    description: "Balanced risk and return"
+    account_balance: 10000.0
+    risk_percentage: 2.0  # 2% risk per trade
+    max_position_size: 5.0  # 5% max position
+    max_daily_trades: 10  # Current setting
+    max_daily_loss: 5.0  # 5% daily loss limit
+    stop_loss_percentage: 3.0  # 3% stop loss
+    take_profit_percentage: 6.0  # 6% take profit
+    min_score_threshold: 0.1  # Current threshold
+    max_risk_score: 0.8  # Current risk tolerance
+    
+  risky:
+    name: "Risky (Middle Ground)"
+    description: "Higher risk than moderate, lower than turbo"
+    account_balance: 10000.0
+    risk_percentage: 4.0  # 4% risk per trade
+    max_position_size: 8.0  # 8% max position
+    max_daily_trades: 15  # More trades than moderate
+    max_daily_loss: 8.0  # 8% daily loss limit
+    stop_loss_percentage: 4.0  # 4% stop loss
+    take_profit_percentage: 8.0  # 8% take profit
+    min_score_threshold: 0.07  # Lower than moderate
+    max_risk_score: 0.85  # Higher than moderate
