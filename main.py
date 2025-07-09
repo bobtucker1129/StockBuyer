@@ -62,7 +62,7 @@ async def main():
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-        # Start the web dashboard only (for Railway)
+        # Start the web dashboard (for Render)
         logger.info("🚀 Starting web dashboard...")
 
         # Start the dashboard
