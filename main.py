@@ -43,6 +43,9 @@ async def main():
         # Initialize web dashboard
         dashboard = WebDashboard(trading_agent)
         logger.info("🌐 Web dashboard initialized")
+        logger.info(
+            f"Dashboard config - host: {config.system.dashboard_host}, port: {config.system.dashboard_port}"
+        )
 
         # Setup signal handlers for graceful shutdown
         def signal_handler(signum, frame):
@@ -53,11 +56,22 @@ async def main():
         signal.signal(signal.SIGTERM, signal_handler)
 
         # Start the trading agent and dashboard
-        await asyncio.gather(
-            trading_agent.run(),
-            dashboard.start(),
-            return_exceptions=True,
-        )
+        logger.info("🚀 Starting trading agent and dashboard...")
+        try:
+            # For Railway deployment, we need to handle the PORT environment variable
+            import os
+
+            port = int(os.environ.get("PORT", config.system.dashboard_port))
+            config.system.dashboard_port = port
+
+            await asyncio.gather(
+                trading_agent.run(),
+                dashboard.start(),
+                return_exceptions=True,
+            )
+        except Exception as e:
+            logger.error(f"❌ Error in asyncio.gather: {e}")
+            raise
 
     except Exception as e:
         logger.error(f"❌ Error in main: {e}")

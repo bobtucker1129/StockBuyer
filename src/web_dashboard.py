@@ -56,39 +56,93 @@ class WebDashboard:
         @self.app.get("/api/strategies")
         async def get_strategies():
             """Get detailed information about all strategies"""
-            strategies_info = {}
+            try:
+                strategies_info = {}
 
-            for strategy_name, strategy_data in self.trading_agent.strategies.items():
-                portfolio_manager = strategy_data["portfolio_manager"]
-                portfolio_summary = portfolio_manager.get_portfolio_summary()
+                # Check for failed strategies
+                if (
+                    hasattr(self.trading_agent, "strategies_failed")
+                    and self.trading_agent.strategies_failed
+                ):
+                    logger.critical(
+                        "❌ No strategies loaded in agent. Returning error to dashboard."
+                    )
+                    return {
+                        "error": "No strategies loaded! Check your config.yaml under 'strategies:' and for errors in the logs."
+                    }
 
-                strategies_info[strategy_name] = {
-                    "name": (
-                        strategy_data["config"].trading.name
-                        if hasattr(strategy_data["config"].trading, "name")
-                        else strategy_name
-                    ),
-                    "description": (
-                        strategy_data["config"].trading.description
-                        if hasattr(strategy_data["config"].trading, "description")
-                        else ""
-                    ),
-                    "is_active": strategy_data["is_active"],
-                    "account_balance": portfolio_summary["account_balance"],
-                    "total_pnl": portfolio_summary["total_pnl"],
-                    "daily_pnl": portfolio_summary["daily_pnl"],
-                    "positions_count": portfolio_summary["positions_count"],
-                    "trades_today": portfolio_summary["trades_today"],
-                    "opportunities_count": len(strategy_data["daily_opportunities"]),
-                    "risk_percentage": strategy_data["config"].trading.risk_percentage,
-                    "max_position_size": strategy_data[
-                        "config"
-                    ].trading.max_position_size,
-                    "max_daily_trades": strategy_data["config"].system.max_daily_trades,
-                    "max_daily_loss": strategy_data["config"].system.max_daily_loss,
-                }
+                # Debug logging
+                logger.info(
+                    f"Number of strategies: {len(self.trading_agent.strategies)}"
+                )
+                logger.info(
+                    f"Strategy keys: {list(self.trading_agent.strategies.keys())}"
+                )
+                logger.info(f"Trading agent type: {type(self.trading_agent)}")
+                logger.info(f"Strategies type: {type(self.trading_agent.strategies)}")
 
-            return strategies_info
+                # Check if we have any strategies
+                if not self.trading_agent.strategies:
+                    logger.warning("No strategies available in trading agent")
+                    return {
+                        "error": "No strategies available! Check your config.yaml under 'strategies:' and for errors in the logs."
+                    }
+
+                for (
+                    strategy_name,
+                    strategy_data,
+                ) in self.trading_agent.strategies.items():
+                    logger.info(f"Processing strategy: {strategy_name}")
+                    logger.info(f"Strategy data keys: {list(strategy_data.keys())}")
+                    try:
+                        portfolio_manager = strategy_data["portfolio_manager"]
+                        portfolio_summary = portfolio_manager.get_portfolio_summary()
+
+                        strategies_info[strategy_name] = {
+                            "name": (
+                                strategy_data["config"].trading.name
+                                if hasattr(strategy_data["config"].trading, "name")
+                                else strategy_name
+                            ),
+                            "description": (
+                                strategy_data["config"].trading.description
+                                if hasattr(
+                                    strategy_data["config"].trading, "description"
+                                )
+                                else ""
+                            ),
+                            "is_active": strategy_data["is_active"],
+                            "account_balance": portfolio_summary["account_balance"],
+                            "total_pnl": portfolio_summary["total_pnl"],
+                            "daily_pnl": portfolio_summary["daily_pnl"],
+                            "positions_count": portfolio_summary["positions_count"],
+                            "trades_today": portfolio_summary["trades_today"],
+                            "opportunities_count": len(
+                                strategy_data["daily_opportunities"]
+                            ),
+                            "risk_percentage": strategy_data[
+                                "config"
+                            ].trading.risk_percentage,
+                            "max_position_size": strategy_data[
+                                "config"
+                            ].trading.max_position_size,
+                            "max_daily_trades": strategy_data[
+                                "config"
+                            ].system.max_daily_trades,
+                            "max_daily_loss": strategy_data[
+                                "config"
+                            ].system.max_daily_loss,
+                        }
+                        logger.info(f"Successfully processed strategy: {strategy_name}")
+                    except Exception as e:
+                        logger.error(f"Error processing strategy {strategy_name}: {e}")
+                        strategies_info[strategy_name] = {"error": str(e)}
+
+                logger.info(f"Returning {len(strategies_info)} strategies")
+                return strategies_info
+            except Exception as e:
+                logger.error(f"Error getting strategies: {e}")
+                return {"error": str(e)}
 
         @self.app.get("/api/trades/{strategy_name}")
         async def get_trades(strategy_name: str):
@@ -166,51 +220,117 @@ class WebDashboard:
 
         @self.app.get("/api/opportunities")
         async def get_opportunities():
-            """Get current trading opportunities"""
-            opportunities = []
+            """Get current trading opportunities and recent research data"""
+            try:
+                opportunities = []
 
-            # Get opportunities from the first strategy (shared research)
-            first_strategy = list(self.trading_agent.strategies.values())[0]
-            for opp in first_strategy["daily_opportunities"][:10]:
-                # Handle NaN values for JSON serialization
-                opportunities.append(
-                    {
-                        "symbol": opp.symbol,
-                        "current_price": (
-                            float(opp.current_price)
-                            if not pd.isna(opp.current_price)
-                            else 0.0
-                        ),
-                        "score": float(opp.score) if not pd.isna(opp.score) else 0.0,
-                        "risk_score": (
-                            float(opp.risk_score)
-                            if not pd.isna(opp.risk_score)
-                            else 0.0
-                        ),
-                        "potential_return": (
-                            float(opp.potential_return)
-                            if not pd.isna(opp.potential_return)
-                            else 0.0
-                        ),
-                        "technical_score": (
-                            float(opp.technical_score)
-                            if not pd.isna(opp.technical_score)
-                            else 0.0
-                        ),
-                        "sentiment_score": (
-                            float(opp.sentiment_score)
-                            if not pd.isna(opp.sentiment_score)
-                            else 0.0
-                        ),
-                        "news_score": (
-                            float(opp.news_score)
-                            if not pd.isna(opp.news_score)
-                            else 0.0
-                        ),
-                    }
-                )
+                # Check if we have any strategies
+                if not self.trading_agent.strategies:
+                    return {"error": "No strategies available"}
 
-            return opportunities
+                # Get opportunities from the first strategy (shared research)
+                first_strategy = list(self.trading_agent.strategies.values())[0]
+
+                # First, try to get current opportunities
+                if first_strategy["daily_opportunities"]:
+                    for opp in first_strategy["daily_opportunities"][:10]:
+                        # Handle NaN values for JSON serialization
+                        opportunities.append(
+                            {
+                                "symbol": opp.symbol,
+                                "current_price": (
+                                    float(opp.current_price)
+                                    if not pd.isna(opp.current_price)
+                                    else 0.0
+                                ),
+                                "score": (
+                                    float(opp.score) if not pd.isna(opp.score) else 0.0
+                                ),
+                                "risk_score": (
+                                    float(opp.risk_score)
+                                    if not pd.isna(opp.risk_score)
+                                    else 0.0
+                                ),
+                                "potential_return": (
+                                    float(opp.potential_return)
+                                    if not pd.isna(opp.potential_return)
+                                    else 0.0
+                                ),
+                                "technical_score": (
+                                    float(opp.technical_score)
+                                    if not pd.isna(opp.technical_score)
+                                    else 0.0
+                                ),
+                                "sentiment_score": (
+                                    float(opp.sentiment_score)
+                                    if not pd.isna(opp.sentiment_score)
+                                    else 0.0
+                                ),
+                                "news_score": (
+                                    float(opp.news_score)
+                                    if not pd.isna(opp.news_score)
+                                    else 0.0
+                                ),
+                                "type": "opportunity",
+                            }
+                        )
+
+                # If no current opportunities, get recent trades from all strategies
+                if not opportunities:
+                    for (
+                        strategy_name,
+                        strategy_data,
+                    ) in self.trading_agent.strategies.items():
+                        try:
+                            conn = sqlite3.connect(f"trading_data_{strategy_name}.db")
+                            cursor = conn.cursor()
+
+                            cursor.execute(
+                                """
+                                SELECT symbol, shares, price, total, type, timestamp, opportunity_score, risk_score
+                                FROM trades 
+                                ORDER BY timestamp DESC 
+                                LIMIT 5
+                                """
+                            )
+
+                            for row in cursor.fetchall():
+                                opportunities.append(
+                                    {
+                                        "symbol": row[0],
+                                        "shares": row[1],
+                                        "price": row[2],
+                                        "total": row[3],
+                                        "type": row[4],
+                                        "timestamp": row[5],
+                                        "score": row[6] if row[6] else 0.0,
+                                        "risk_score": row[7] if row[7] else 0.0,
+                                        "strategy": strategy_name,
+                                        "type": "recent_trade",
+                                    }
+                                )
+
+                            conn.close()
+                        except Exception as e:
+                            logger.error(
+                                f"Error getting trades for {strategy_name}: {e}"
+                            )
+                            continue
+
+                # If still no data, return a message
+                if not opportunities:
+                    return [
+                        {
+                            "symbol": "No opportunities",
+                            "message": "No current opportunities available. Trading cycle completed. Check back after the next research cycle.",
+                            "type": "info",
+                        }
+                    ]
+
+                return opportunities
+            except Exception as e:
+                logger.error(f"Error getting opportunities: {e}")
+                return {"error": str(e)}
 
         @self.app.post("/api/set-balance/{strategy_name}")
         async def set_strategy_balance(strategy_name: str, request: dict):
@@ -319,6 +439,7 @@ class WebDashboard:
                 .opportunity-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #dee2e6; }
                 .opportunity-item:last-child { border-bottom: none; }
                 .no-opportunities { text-align: center; color: #666; font-style: italic; }
+                .error-message { color: #dc3545; background: #f8d7da; border: 1px solid #dc3545; padding: 16px; border-radius: 8px; margin-bottom: 24px; text-align: center; font-weight: bold; }
                 .links { margin-top: 24px; text-align: center; }
                 .links a { display: inline-block; margin: 8px 16px 8px 0; padding: 8px 16px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; }
                 .links a:hover { background: #0056b3; }
@@ -327,6 +448,7 @@ class WebDashboard:
         <body>
             <div id="container">
                 <h1>🚀 Multi-Strategy Stock Market Trading Agent</h1>
+                <div id="error-message" class="error-message" style="display:none;"></div>
                 <div id="strategies" class="strategies-grid">
                     <!-- Strategy cards will be populated here -->
                 </div>
@@ -363,6 +485,25 @@ class WebDashboard:
                         console.log('WebSocket disconnected, reconnecting...');
                         setTimeout(connectWebSocket, 5000);
                     };
+                }
+                
+                async function fetchStrategies() {
+                    try {
+                        const response = await fetch('/api/strategies');
+                        const data = await response.json();
+                        if (data.error) {
+                            document.getElementById('error-message').innerText = data.error;
+                            document.getElementById('error-message').style.display = 'block';
+                            document.getElementById('strategies').style.display = 'none';
+                        } else {
+                            document.getElementById('error-message').style.display = 'none';
+                            document.getElementById('strategies').style.display = 'grid';
+                        }
+                    } catch (e) {
+                        document.getElementById('error-message').innerText = 'Error loading strategies: ' + e;
+                        document.getElementById('error-message').style.display = 'block';
+                        document.getElementById('strategies').style.display = 'none';
+                    }
                 }
                 
                 function updateDashboard(data) {
@@ -438,22 +579,56 @@ class WebDashboard:
                 function updateOpportunities(strategies) {
                     const container = document.getElementById('opportunities');
                     
-                    // Get opportunities from the first active strategy
-                    const firstStrategy = Object.values(strategies).find(s => s.is_active);
-                    
-                    if (firstStrategy && firstStrategy.opportunities_count > 0) {
-                        container.innerHTML = `<div class="opportunity-item">
-                            <span><strong>Found ${firstStrategy.opportunities_count} opportunities</strong></span>
-                            <span>Click "View All Opportunities" for details</span>
-                        </div>`;
-                    } else {
-                        const today = new Date().getDay();
-                        if (today === 0 || today === 6) {
-                            container.innerHTML = '<div class="no-opportunities">No trading opportunities found today. It\'s the weekend. The US stock market is closed. Opportunities will appear on trading days.</div>';
-                        } else {
-                            container.innerHTML = '<div class="no-opportunities">No trading opportunities found today. The market may be closed or there are no signals at this time. Check back during market hours.</div>';
-                        }
-                    }
+                    // Fetch opportunities directly from the API
+                    fetch('/api/opportunities')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                container.innerHTML = `<div class="error-message">Error: ${data.error}</div>`;
+                                return;
+                            }
+                            
+                            if (data.length === 0) {
+                                container.innerHTML = '<div class="no-opportunities">No opportunities or recent trades available.</div>';
+                                return;
+                            }
+                            
+                            // Check if it's an info message
+                            if (data.length === 1 && data[0].type === 'info') {
+                                container.innerHTML = `<div class="no-opportunities">${data[0].message}</div>`;
+                                return;
+                            }
+                            
+                            // Display opportunities or recent trades
+                            let html = '';
+                            data.forEach(item => {
+                                if (item.type === 'opportunity') {
+                                    html += `
+                                        <div class="opportunity-item">
+                                            <span><strong>${item.symbol}</strong> - $${item.current_price.toFixed(2)}</span>
+                                            <span>Score: ${item.score.toFixed(3)} | Risk: ${item.risk_score.toFixed(3)}</span>
+                                        </div>
+                                    `;
+                                } else if (item.type === 'recent_trade') {
+                                    html += `
+                                        <div class="opportunity-item">
+                                            <span><strong>${item.symbol}</strong> - ${item.shares} shares @ $${item.price.toFixed(2)}</span>
+                                            <span>${item.strategy} | ${item.timestamp}</span>
+                                        </div>
+                                    `;
+                                }
+                            });
+                            
+                            if (html === '') {
+                                html = '<div class="no-opportunities">No opportunities or recent trades available.</div>';
+                            }
+                            
+                            container.innerHTML = html;
+                        })
+                        .catch(error => {
+                            console.error('Error fetching opportunities:', error);
+                            container.innerHTML = '<div class="no-opportunities">Error loading opportunities. Please try again.</div>';
+                        });
                 }
                 
                 async function setBalance(strategyName) {
@@ -496,6 +671,7 @@ class WebDashboard:
                 
                 // Initialize
                 connectWebSocket();
+                fetchStrategies();
             </script>
         </body>
         </html>
@@ -503,14 +679,27 @@ class WebDashboard:
 
     async def start(self):
         """Start the web dashboard"""
-        config = uvicorn.Config(
-            self.app,
-            host=self.trading_agent.config.system.dashboard_host,
-            port=self.trading_agent.config.system.dashboard_port,
-            log_level="info",
-        )
-        server = uvicorn.Server(config)
-        await server.serve()
+        try:
+            logger.info(f"Starting web dashboard...")
+            logger.info(f"Trading agent config: {self.trading_agent.config}")
+            logger.info(
+                f"Dashboard host: {self.trading_agent.config.system.dashboard_host}"
+            )
+            logger.info(
+                f"Dashboard port: {self.trading_agent.config.system.dashboard_port}"
+            )
+
+            config = uvicorn.Config(
+                self.app,
+                host=self.trading_agent.config.system.dashboard_host,
+                port=self.trading_agent.config.system.dashboard_port,
+                log_level="info",
+            )
+            server = uvicorn.Server(config)
+            await server.serve()
+        except Exception as e:
+            logger.error(f"Error starting web dashboard: {e}")
+            raise
 
     async def shutdown(self):
         """Shutdown the web dashboard"""
