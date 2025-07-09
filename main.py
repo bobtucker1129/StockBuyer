@@ -35,6 +35,7 @@ async def main():
         logger.info("🚀 Starting Stock Market Trading Agent...")
         logger.info(f"Python version: {sys.version}")
         logger.info(f"Working directory: {os.getcwd()}")
+        logger.info(f"Files in directory: {os.listdir('.')}")
 
         # Load configuration
         config = Config.from_file("config.yaml")
