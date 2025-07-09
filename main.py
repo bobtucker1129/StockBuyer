@@ -61,10 +61,10 @@ async def main():
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-        # Start the trading agent and dashboard
-        logger.info("🚀 Starting trading agent and dashboard...")
+        # Start the web dashboard only (for Railway)
+        logger.info("🚀 Starting web dashboard...")
 
-        # For Railway, start the dashboard first to ensure the web server is running
+        # Start the dashboard
         await dashboard.start()
 
     except Exception as e:
