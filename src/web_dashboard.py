@@ -29,6 +29,11 @@ class WebDashboard:
     def setup_routes(self):
         """Setup API routes"""
 
+        @self.app.get("/health")
+        async def health_check():
+            """Health check endpoint for Render"""
+            return {"status": "healthy", "message": "Trading agent is running"}
+
         @self.app.get("/")
         async def get_dashboard():
             return HTMLResponse(self.get_dashboard_html())
