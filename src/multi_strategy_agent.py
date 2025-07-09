@@ -50,6 +50,7 @@ class MultiStrategyAgent:
 
     def initialize_strategies(self):
         """Initialize each trading strategy"""
+        self.strategies_failed = False
         for strategy_name, strategy_config in self.strategy_configs.items():
             try:
                 # Create strategy-specific config
@@ -78,6 +79,12 @@ class MultiStrategyAgent:
 
             except Exception as e:
                 logger.error(f"❌ Error initializing {strategy_name} strategy: {e}")
+        logger.info(f"Final strategies loaded: {list(self.strategies.keys())}")
+        if not self.strategies:
+            logger.critical(
+                "❌ No strategies loaded! Check your config.yaml under 'strategies:' and for errors above."
+            )
+            self.strategies_failed = True
 
     def create_strategy_config(
         self, strategy_name: str, strategy_config: dict
@@ -140,6 +147,11 @@ class MultiStrategyAgent:
         """Execute daily trading cycle for all strategies"""
         logger.info("📅 Starting daily trading cycle for all strategies")
 
+        # Check if we have any strategies
+        if not self.strategies:
+            logger.warning("⚠️ No strategies available, skipping daily cycle")
+            return
+
         # Research phase (shared across all strategies)
         opportunities = await self.research_opportunities()
 
@@ -155,8 +167,19 @@ class MultiStrategyAgent:
 
     async def research_opportunities(self) -> List[TradingOpportunity]:
         """Research opportunities (shared across all strategies)"""
+        # Check if we have any strategies loaded
+        if not self.strategies:
+            logger.warning("⚠️ No strategies loaded, skipping research")
+            return []
+
         # Use the first strategy's research engine for shared research
-        first_strategy = list(self.strategies.values())[0]
+        strategy_names = list(self.strategies.keys())
+        if not strategy_names:
+            logger.warning("⚠️ No strategy names available, skipping research")
+            return []
+
+        first_strategy_name = strategy_names[0]
+        first_strategy = self.strategies[first_strategy_name]
         research_engine = first_strategy["research_engine"]
 
         opportunities = await research_engine.find_opportunities()
