@@ -38,14 +38,23 @@ class MultiStrategyAgent:
     def load_strategy_configs(self):
         """Load strategy configurations from config file"""
         try:
+            logger.info("🔍 Loading strategy configurations...")
+            logger.info(f"Current working directory: {os.getcwd()}")
+            logger.info(f"Config file exists: {os.path.exists('config.yaml')}")
+
             with open("config.yaml", "r") as f:
                 config_data = yaml.safe_load(f)
 
+            logger.info(f"📋 Config data keys: {list(config_data.keys())}")
             self.strategy_configs = config_data.get("strategies", {})
             logger.info(f"📊 Loaded {len(self.strategy_configs)} strategies")
+            logger.info(f"Strategy names: {list(self.strategy_configs.keys())}")
 
         except Exception as e:
             logger.error(f"❌ Error loading strategy configs: {e}")
+            import traceback
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
             self.strategy_configs = {}
 
     def initialize_strategies(self):
