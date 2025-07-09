@@ -7,6 +7,7 @@ import asyncio
 import logging
 import signal
 import sys
+import os
 from pathlib import Path
 
 # Add src to path
@@ -22,7 +23,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("trading_agent.log"),
     ],
 )
 
@@ -32,9 +32,11 @@ logger = logging.getLogger(__name__)
 async def main():
     """Main entry point"""
     try:
+        logger.info("🚀 Starting Stock Market Trading Agent...")
+
         # Load configuration
         config = Config.from_file("config.yaml")
-        logger.info("📋 Configuration loaded")
+        logger.info("📋 Configuration loaded successfully")
 
         # Initialize multi-strategy trading agent
         trading_agent = MultiStrategyAgent(config)
@@ -43,9 +45,11 @@ async def main():
         # Initialize web dashboard
         dashboard = WebDashboard(trading_agent)
         logger.info("🌐 Web dashboard initialized")
-        logger.info(
-            f"Dashboard config - host: {config.system.dashboard_host}, port: {config.system.dashboard_port}"
-        )
+
+        # Handle Railway PORT environment variable
+        port = int(os.environ.get("PORT", config.system.dashboard_port))
+        config.system.dashboard_port = port
+        logger.info(f"🎯 Using port: {port}")
 
         # Setup signal handlers for graceful shutdown
         def signal_handler(signum, frame):
@@ -57,42 +61,33 @@ async def main():
 
         # Start the trading agent and dashboard
         logger.info("🚀 Starting trading agent and dashboard...")
-        try:
-            # For Railway deployment, we need to handle the PORT environment variable
-            import os
 
-            port = int(os.environ.get("PORT", config.system.dashboard_port))
-            config.system.dashboard_port = port
-
-            await asyncio.gather(
-                trading_agent.run(),
-                dashboard.start(),
-                return_exceptions=True,
-            )
-        except Exception as e:
-            logger.error(f"❌ Error in asyncio.gather: {e}")
-            raise
+        await asyncio.gather(
+            trading_agent.run(),
+            dashboard.start(),
+            return_exceptions=True,
+        )
 
     except Exception as e:
-        logger.error(f"❌ Error in main: {e}")
+        logger.error(f"❌ Critical error in main: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise
 
 
 async def shutdown():
     """Graceful shutdown"""
     logger.info("🛑 Starting graceful shutdown")
-
-    # Stop the trading agent
-    if "trading_agent" in locals():
-        await trading_agent.shutdown()
-
-    # Stop the dashboard
-    if "dashboard" in locals():
-        await dashboard.shutdown()
-
-    logger.info("✅ Trading agent shutdown complete")
     sys.exit(0)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("🛑 Keyboard interrupt received")
+    except Exception as e:
+        logger.error(f"❌ Fatal error: {e}")
+        sys.exit(1)
