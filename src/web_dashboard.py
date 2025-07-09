@@ -415,6 +415,11 @@ class WebDashboard:
                 logger.error(f"Error resetting {strategy_name}: {e}")
                 return {"error": str(e)}
 
+        @self.app.get("/api/version")
+        async def get_version():
+            """Get the current version of the application"""
+            return {"version": "2.0.0", "deployment": "railway-fixed"}
+
     def get_dashboard_html(self) -> str:
         return """
         <!DOCTYPE html>
