@@ -88,15 +88,31 @@ class LearningConfig:
 
 @dataclass
 class Config:
-    trading: TradingConfig
-    research: ResearchConfig
-    system: SystemConfig
-    virtual_trading: VirtualTradingConfig
-    real_trading: RealTradingConfig
-    notifications: NotificationConfig
-    learning: LearningConfig
+    trading: TradingConfig = None
+    research: ResearchConfig = None
+    system: SystemConfig = None
+    virtual_trading: VirtualTradingConfig = None
+    real_trading: RealTradingConfig = None
+    notifications: NotificationConfig = None
+    learning: LearningConfig = None
 
     def __post_init__(self):
+        # Initialize with defaults if not provided
+        if self.trading is None:
+            self.trading = TradingConfig()
+        if self.research is None:
+            self.research = ResearchConfig()
+        if self.system is None:
+            self.system = SystemConfig()
+        if self.virtual_trading is None:
+            self.virtual_trading = VirtualTradingConfig()
+        if self.real_trading is None:
+            self.real_trading = RealTradingConfig()
+        if self.notifications is None:
+            self.notifications = NotificationConfig()
+        if self.learning is None:
+            self.learning = LearningConfig()
+
         if self.research.news_sources is None:
             self.research.news_sources = [
                 "https://finance.yahoo.com/news",
@@ -113,7 +129,7 @@ class Config:
             with open(config_path, "r") as f:
                 data = yaml.safe_load(f)
 
-                # Extract nested configurations
+                # Extract nested configurations with safe defaults
                 trading_data = data.get("trading", {})
                 research_data = data.get("research", {})
                 system_data = data.get("system", {})
@@ -122,14 +138,23 @@ class Config:
                 notification_data = data.get("notifications", {})
                 learning_data = data.get("learning", {})
 
+                # Create config objects with safe defaults
+                trading_config = TradingConfig(**trading_data)
+                research_config = ResearchConfig(**research_data)
+                system_config = SystemConfig(**system_data)
+                virtual_config = VirtualTradingConfig(**virtual_data)
+                real_config = RealTradingConfig(**real_data)
+                notification_config = NotificationConfig(**notification_data)
+                learning_config = LearningConfig(**learning_data)
+
                 return cls(
-                    trading=TradingConfig(**trading_data),
-                    research=ResearchConfig(**research_data),
-                    system=SystemConfig(**system_data),
-                    virtual_trading=VirtualTradingConfig(**virtual_data),
-                    real_trading=RealTradingConfig(**real_data),
-                    notifications=NotificationConfig(**notification_data),
-                    learning=LearningConfig(**learning_data),
+                    trading=trading_config,
+                    research=research_config,
+                    system=system_config,
+                    virtual_trading=virtual_config,
+                    real_trading=real_config,
+                    notifications=notification_config,
+                    learning=learning_config,
                 )
 
         # Return default configuration if file doesn't exist

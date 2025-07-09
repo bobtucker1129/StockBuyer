@@ -9,6 +9,7 @@ from typing import List, Dict, Any
 import yaml
 import sqlite3
 import os
+import copy
 
 from .research_engine import ResearchEngine
 from .trading_engine import TradingEngine
@@ -27,6 +28,9 @@ class MultiStrategyAgent:
         self.strategies = {}
         self.is_running = False
 
+        # Initialize main database
+        self.init_main_database()
+
         # Load strategy configurations
         self.load_strategy_configs()
 
@@ -34,6 +38,77 @@ class MultiStrategyAgent:
         self.initialize_strategies()
 
         logger.info("🤖 Multi-Strategy Trading Agent initialized")
+
+    def init_main_database(self):
+        """Initialize the main database with required tables"""
+        try:
+            # Use the main database URL from config
+            db_path = self.config.system.database_url.replace("sqlite:///", "")
+            if not db_path:
+                db_path = "trading_data.db"
+
+            logger.info(f"📊 Initializing main database: {db_path}")
+
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            # Create trades table for main database
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT NOT NULL,
+                    shares INTEGER NOT NULL,
+                    price REAL NOT NULL,
+                    total REAL NOT NULL,
+                    type TEXT NOT NULL,
+                    strategy TEXT NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    opportunity_score REAL,
+                    risk_score REAL
+                )
+            """
+            )
+
+            # Create positions table for main database
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS positions (
+                    symbol TEXT NOT NULL,
+                    strategy TEXT NOT NULL,
+                    shares INTEGER NOT NULL,
+                    avg_price REAL NOT NULL,
+                    current_price REAL,
+                    total_value REAL,
+                    pnl REAL,
+                    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (symbol, strategy)
+                )
+            """
+            )
+
+            # Create portfolio_summary table for main database
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS portfolio_summary (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    strategy TEXT NOT NULL,
+                    account_balance REAL NOT NULL,
+                    total_pnl REAL NOT NULL,
+                    daily_pnl REAL NOT NULL,
+                    positions_count INTEGER NOT NULL,
+                    trades_today INTEGER NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            )
+
+            conn.commit()
+            conn.close()
+            logger.info(f"✅ Main database initialized: {db_path}")
+
+        except Exception as e:
+            logger.error(f"❌ Error initializing main database: {e}")
 
     def load_strategy_configs(self):
         """Load strategy configurations from config file"""
@@ -98,42 +173,70 @@ class MultiStrategyAgent:
     def create_strategy_config(
         self, strategy_name: str, strategy_config: dict
     ) -> Config:
-        """Create a Config object for a specific strategy"""
-        # Create a copy of the base config
-        strategy_config_obj = Config()
+        """Create a Config object for a specific strategy by inheriting from main config"""
+        try:
+            # Start with a deep copy of the main config
+            strategy_config_obj = copy.deepcopy(self.config)
 
-        # Override with strategy-specific settings
-        strategy_config_obj.trading.account_balance = strategy_config.get(
-            "account_balance", 10000.0
-        )
-        strategy_config_obj.trading.risk_percentage = strategy_config.get(
-            "risk_percentage", 2.0
-        )
-        strategy_config_obj.trading.max_position_size = strategy_config.get(
-            "max_position_size", 5.0
-        )
-        strategy_config_obj.system.max_daily_trades = strategy_config.get(
-            "max_daily_trades", 10
-        )
-        strategy_config_obj.system.max_daily_loss = strategy_config.get(
-            "max_daily_loss", 5.0
-        )
-        strategy_config_obj.trading.stop_loss_percentage = strategy_config.get(
-            "stop_loss_percentage", 3.0
-        )
-        strategy_config_obj.trading.take_profit_percentage = strategy_config.get(
-            "take_profit_percentage", 6.0
-        )
+            # Apply strategy-specific overrides
+            if "account_balance" in strategy_config:
+                strategy_config_obj.trading.account_balance = strategy_config[
+                    "account_balance"
+                ]
 
-        # Store strategy-specific thresholds
-        strategy_config_obj.trading.min_score_threshold = strategy_config.get(
-            "min_score_threshold", 0.1
-        )
-        strategy_config_obj.trading.max_risk_score = strategy_config.get(
-            "max_risk_score", 0.8
-        )
+            if "risk_percentage" in strategy_config:
+                strategy_config_obj.trading.risk_percentage = strategy_config[
+                    "risk_percentage"
+                ]
 
-        return strategy_config_obj
+            if "max_position_size" in strategy_config:
+                strategy_config_obj.trading.max_position_size = strategy_config[
+                    "max_position_size"
+                ]
+
+            if "max_daily_trades" in strategy_config:
+                strategy_config_obj.system.max_daily_trades = strategy_config[
+                    "max_daily_trades"
+                ]
+
+            if "max_daily_loss" in strategy_config:
+                strategy_config_obj.system.max_daily_loss = strategy_config[
+                    "max_daily_loss"
+                ]
+
+            if "stop_loss_percentage" in strategy_config:
+                strategy_config_obj.trading.stop_loss_percentage = strategy_config[
+                    "stop_loss_percentage"
+                ]
+
+            if "take_profit_percentage" in strategy_config:
+                strategy_config_obj.trading.take_profit_percentage = strategy_config[
+                    "take_profit_percentage"
+                ]
+
+            # Store strategy-specific thresholds as custom attributes
+            strategy_config_obj.trading.min_score_threshold = strategy_config.get(
+                "min_score_threshold", 0.1
+            )
+            strategy_config_obj.trading.max_risk_score = strategy_config.get(
+                "max_risk_score", 0.8
+            )
+
+            # Store strategy name and description
+            strategy_config_obj.trading.name = strategy_config.get(
+                "name", strategy_name
+            )
+            strategy_config_obj.trading.description = strategy_config.get(
+                "description", ""
+            )
+
+            logger.info(f"✅ Created config for {strategy_name} strategy")
+            return strategy_config_obj
+
+        except Exception as e:
+            logger.error(f"❌ Error creating config for {strategy_name}: {e}")
+            # Return a copy of the main config as fallback
+            return copy.deepcopy(self.config)
 
     async def run(self):
         """Main trading loop for all strategies"""

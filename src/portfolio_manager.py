@@ -116,7 +116,7 @@ class PortfolioManager:
                 "risk_score": risk_score,
             }
 
-            # Store in database
+            # Store in strategy-specific database
             conn = sqlite3.connect(self.db_file)
             cursor = conn.cursor()
 
@@ -140,6 +140,52 @@ class PortfolioManager:
 
             conn.commit()
             conn.close()
+
+            # Also store in main database
+            try:
+                main_db_path = "trading_data.db"
+                conn = sqlite3.connect(main_db_path)
+                cursor = conn.cursor()
+
+                # Insert trade record in main database
+                cursor.execute(
+                    """
+                    INSERT INTO trades (symbol, shares, price, total, type, strategy, opportunity_score, risk_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        symbol,
+                        shares,
+                        price,
+                        total_value,
+                        "BUY",
+                        self.strategy_name,
+                        score,
+                        risk_score,
+                    ),
+                )
+
+                # Update positions table in main database
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO positions (symbol, strategy, shares, avg_price, current_price, total_value, pnl)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        symbol,
+                        self.strategy_name,
+                        shares,
+                        price,
+                        price,
+                        total_value,
+                        0.0,
+                    ),
+                )
+
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                logger.warning(f"⚠️  Could not store in main database: {e}")
 
             self.trades_today += 1
             logger.info(
@@ -249,7 +295,7 @@ class PortfolioManager:
             # Remove position
             del self.positions[symbol]
 
-            # Store trade record
+            # Store trade record in strategy-specific database
             conn = sqlite3.connect(self.db_file)
             cursor = conn.cursor()
 
@@ -266,6 +312,38 @@ class PortfolioManager:
 
             conn.commit()
             conn.close()
+
+            # Also store in main database
+            try:
+                main_db_path = "trading_data.db"
+                conn = sqlite3.connect(main_db_path)
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    INSERT INTO trades (symbol, shares, price, total, type, strategy)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        symbol,
+                        shares,
+                        current_price,
+                        total_value,
+                        "SELL",
+                        self.strategy_name,
+                    ),
+                )
+
+                # Remove from positions table in main database
+                cursor.execute(
+                    "DELETE FROM positions WHERE symbol = ? AND strategy = ?",
+                    (symbol, self.strategy_name),
+                )
+
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                logger.warning(f"⚠️  Could not store in main database: {e}")
 
             logger.info(
                 f"📉 Closed position: {shares} shares of {symbol} at ${current_price:.2f} ({reason})"

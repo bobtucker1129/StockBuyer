@@ -148,16 +148,25 @@ class WebDashboard:
         async def get_trades(strategy_name: str):
             """Get recent trades for a specific strategy"""
             try:
-                conn = sqlite3.connect(f"trading_data_{strategy_name}.db")
+                # Use main database instead of strategy-specific database
+                db_path = self.trading_agent.config.system.database_url.replace(
+                    "sqlite:///", ""
+                )
+                if not db_path:
+                    db_path = "trading_data.db"
+
+                conn = sqlite3.connect(db_path)
                 cursor = conn.cursor()
 
                 cursor.execute(
                     """
                     SELECT symbol, shares, price, total, type, timestamp, opportunity_score, risk_score
                     FROM trades 
+                    WHERE strategy = ?
                     ORDER BY timestamp DESC 
                     LIMIT 20
-                    """
+                    """,
+                    (strategy_name,),
                 )
 
                 trades = []
@@ -277,45 +286,47 @@ class WebDashboard:
 
                 # If no current opportunities, get recent trades from all strategies
                 if not opportunities:
-                    for (
-                        strategy_name,
-                        strategy_data,
-                    ) in self.trading_agent.strategies.items():
-                        try:
-                            conn = sqlite3.connect(f"trading_data_{strategy_name}.db")
-                            cursor = conn.cursor()
+                    # Use main database instead of strategy-specific databases
+                    db_path = self.trading_agent.config.system.database_url.replace(
+                        "sqlite:///", ""
+                    )
+                    if not db_path:
+                        db_path = "trading_data.db"
 
-                            cursor.execute(
-                                """
-                                SELECT symbol, shares, price, total, type, timestamp, opportunity_score, risk_score
-                                FROM trades 
-                                ORDER BY timestamp DESC 
-                                LIMIT 5
-                                """
+                    try:
+                        conn = sqlite3.connect(db_path)
+                        cursor = conn.cursor()
+
+                        cursor.execute(
+                            """
+                            SELECT symbol, shares, price, total, type, timestamp, opportunity_score, risk_score, strategy
+                            FROM trades 
+                            ORDER BY timestamp DESC 
+                            LIMIT 15
+                            """
+                        )
+
+                        for row in cursor.fetchall():
+                            opportunities.append(
+                                {
+                                    "symbol": row[0],
+                                    "shares": row[1],
+                                    "price": row[2],
+                                    "total": row[3],
+                                    "type": row[4],
+                                    "timestamp": row[5],
+                                    "score": row[6] if row[6] else 0.0,
+                                    "risk_score": row[7] if row[7] else 0.0,
+                                    "strategy": row[8],
+                                    "type": "recent_trade",
+                                }
                             )
 
-                            for row in cursor.fetchall():
-                                opportunities.append(
-                                    {
-                                        "symbol": row[0],
-                                        "shares": row[1],
-                                        "price": row[2],
-                                        "total": row[3],
-                                        "type": row[4],
-                                        "timestamp": row[5],
-                                        "score": row[6] if row[6] else 0.0,
-                                        "risk_score": row[7] if row[7] else 0.0,
-                                        "strategy": strategy_name,
-                                        "type": "recent_trade",
-                                    }
-                                )
-
-                            conn.close()
-                        except Exception as e:
-                            logger.error(
-                                f"Error getting trades for {strategy_name}: {e}"
-                            )
-                            # Add a placeholder trade to show the strategy is working
+                        conn.close()
+                    except Exception as e:
+                        logger.error(f"Error getting trades from main database: {e}")
+                        # Add placeholder opportunities for each strategy
+                        for strategy_name in self.trading_agent.strategies.keys():
                             opportunities.append(
                                 {
                                     "symbol": "N/A",
@@ -331,7 +342,6 @@ class WebDashboard:
                                     "message": f"{strategy_name} strategy is running but no trades yet. Database will be created on first trade.",
                                 }
                             )
-                            continue
 
                 # If still no data, return a message
                 if not opportunities:
