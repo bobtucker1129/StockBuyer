@@ -64,11 +64,8 @@ async def main():
         # Start the trading agent and dashboard
         logger.info("🚀 Starting trading agent and dashboard...")
 
-        await asyncio.gather(
-            trading_agent.run(),
-            dashboard.start(),
-            return_exceptions=True,
-        )
+        # For Railway, start the dashboard first to ensure the web server is running
+        await dashboard.start()
 
     except Exception as e:
         logger.error(f"❌ Critical error in main: {e}")
