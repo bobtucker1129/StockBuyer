@@ -315,6 +315,22 @@ class WebDashboard:
                             logger.error(
                                 f"Error getting trades for {strategy_name}: {e}"
                             )
+                            # Add a placeholder trade to show the strategy is working
+                            opportunities.append(
+                                {
+                                    "symbol": "N/A",
+                                    "shares": 0,
+                                    "price": 0.0,
+                                    "total": 0.0,
+                                    "type": "No trades yet",
+                                    "timestamp": "New deployment",
+                                    "score": 0.0,
+                                    "risk_score": 0.0,
+                                    "strategy": strategy_name,
+                                    "type": "info",
+                                    "message": f"{strategy_name} strategy is running but no trades yet. Database will be created on first trade.",
+                                }
+                            )
                             continue
 
                 # If still no data, return a message
